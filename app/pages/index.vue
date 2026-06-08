@@ -1,8 +1,6 @@
 <script setup>
 // ClientOnly garantiza que canvas/GSAP nunca toquen el DOM en SSR.
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useSceneManager } from '~/composables/useSceneManager'
-const { modoEdicion } = useSceneManager()
 
 // El juego tiene tamaño natural fijo (canvas 1440x800 + TopBar ~60px). En pantallas
 // más chicas se escala con transform para que entre completo (sin recortar el header).
@@ -23,17 +21,11 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('resize', calcularEscala))
 
-// En modo edición no se escala (se calibra en pantalla grande con el panel al costado).
-const estiloEscala = computed(() =>
-  modoEdicion.value ? {} : { transform: `scale(${escala.value})`, transformOrigin: 'center' }
-)
+const estiloEscala = computed(() => ({ transform: `scale(${escala.value})`, transformOrigin: 'center' }))
 </script>
 
 <template>
-  <div
-    class="w-full h-screen flex items-center relative bg-noche overflow-hidden"
-    :class="modoEdicion ? 'justify-start' : 'justify-center'"
-  >
+  <div class="w-full h-screen flex justify-center items-center relative bg-noche overflow-hidden">
     <ClientOnly>
       <div :style="estiloEscala">
         <GameRoot />

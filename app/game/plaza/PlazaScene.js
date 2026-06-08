@@ -2,10 +2,6 @@
 // POLIGONALES normalizadas (0-1) que siguen la forma isométrica de cada edificio.
 // El jugador camina libre pero no atraviesa edificios ni muros (resbala).
 // Click o caminar hasta la puerta = entrar.
-//
-// Editores:
-//   E = zonas de edificio (vértices, mover, puerta)
-//   M = muros no caminables (clic agrega vértice, Enter cierra polígono)
 
 import { drawPlayer, dirDesdeVector } from '~/game/render/drawPlayer'
 import { drawNpc } from '~/game/render/drawNpc'
@@ -13,9 +9,9 @@ import { SistemaParticulas } from '~/game/render/particles'
 import { NPCS_PLAZA, NPCS_INTERIOR, npcEnPunto, npcCercaDe, RADIO_CERCA_NPC, RADIO_CHOQUE_NPC } from '~/game/npc/npcs'
 import { useAudio } from '~/composables/useAudio'
 import {
-  EDIFICIOS, ZONA_CAMINABLE, CAMINOS, POS_INICIAL_JUGADOR,
-  edificioEnPunto, edificioEnPuerta, puntoEnPoligono, esBloqueado,
-  claveCamino, caminoEntre, puntoMasCercanoEnRed
+  EDIFICIOS, POS_INICIAL_JUGADOR,
+  edificioEnPunto, edificioEnPuerta, esBloqueado,
+  caminoEntre, puntoMasCercanoEnRed
 } from './buildings'
 
 const ANCHO = 1440
@@ -23,7 +19,6 @@ const ALTO = 800
 
 const VEL = 0.32
 const UMBRAL_LLEGADA = 0.012
-const HANDLE = 11
 const RADIO_PUERTA = 0.045 // distancia a la puerta para entrar
 // Al reaparecer en la puerta, hay que alejarse esta poca distancia para que la
 // gracia se libere y se pueda volver a entrar (chico = entrás de nuevo enseguida).
@@ -57,20 +52,6 @@ export class PlazaRenderer {
 
     this.edificioHover = null
 
-    this.editor = false // editor de zonas de edificio
-    this.agarre = null
-
-    this.editorCaminable = false // editor de la zona caminable
-    this.agarreCaminable = null // índice del vértice arrastrado
-
-    this.editorCaminos = false // editor de caminos (W)
-    this.camOrigen = 'inicio' // par activo del editor de caminos
-    this.camDestino = null
-    this.agarreNodo = -1 // índice del nodo arrastrado en el camino activo
-
-    this.editorNpcs = false // editor de NPCs (N): arrastrar próceres/ciudadano
-    this.agarreNpc = null // NPC arrastrado en el editor
-
     this.npcs = NPCS_PLAZA
     this.npcCerca = null // NPC dentro del radio de cercanía (para el prompt "E")
     this.indiceDialogo = {} // id NPC → línea actual (rota al hablar)
@@ -94,61 +75,9 @@ export class PlazaRenderer {
     img.src = src
   }
 
-  toggleEditor() {
-    this.editor = !this.editor
-    this.editorCaminable = false
-    this.editorCaminos = false
-    this.editorNpcs = false
-    this.agarre = null
-  }
-
-  toggleEditorCaminable() {
-    this.editorCaminable = !this.editorCaminable
-    this.editor = false
-    this.editorCaminos = false
-    this.editorNpcs = false
-    this.agarreCaminable = null
-  }
-
-  toggleEditorCaminos() {
-    this.editorCaminos = !this.editorCaminos
-    this.editor = false
-    this.editorCaminable = false
-    this.editorNpcs = false
-    this.agarreNodo = -1
-  }
-
-  toggleEditorNpcs() {
-    this.editorNpcs = !this.editorNpcs
-    this.editor = false
-    this.editorCaminable = false
-    this.editorCaminos = false
-    this.agarreNpc = null
-  }
-
-  // Selecciona el par origen→destino que se está editando.
-  setPar(origen, destino) {
-    this.camOrigen = origen
-    this.camDestino = destino
-    this.agarreNodo = -1
-  }
-
-  // El array de nodos del camino activo (lo crea si no existe).
-  caminoActivo() {
-    if (!this.camDestino) return null
-    const k = claveCamino(this.camOrigen, this.camDestino)
-    if (!CAMINOS[k]) CAMINOS[k] = []
-    return CAMINOS[k]
-  }
-
-  get enEditor() {
-    return this.editor || this.editorCaminable || this.editorCaminos || this.editorNpcs
-  }
-
   // --- INPUT de juego ---
 
   clickEn(sx, sy) {
-    if (this.enEditor) return
     const p = this.aNorm(sx, sy)
     const edif = edificioEnPunto(p.x, p.y)
     if (edif && edif.escena) {
@@ -179,7 +108,6 @@ export class PlazaRenderer {
   }
 
   moverMouse(sx, sy) {
-    if (this.enEditor) return
     const p = this.aNorm(sx, sy)
     this.edificioHover = edificioEnPunto(p.x, p.y)
   }
@@ -187,7 +115,7 @@ export class PlazaRenderer {
   // Clic sobre un NPC: si está cerca, habla ya; si está lejos, camina hasta él y
   // habla al llegar. Devuelve el diálogo si habla en el acto, o null si va a caminar.
   clickNpc(sx, sy) {
-    if (this.enEditor || this.modoCinematico) return null
+    if (this.modoCinematico) return null
     const p = this.aNorm(sx, sy)
     // ¿Clic sobre el cuerpo de un NPC? (radio de cuerpo, no de cercanía)
     let elegido = null
@@ -223,7 +151,7 @@ export class PlazaRenderer {
 
   // Devuelve { nombre, texto } del NPC cercano y avanza su línea, o null.
   hablarConCerca() {
-    if (this.enEditor || !this.npcCerca) return null
+    if (!this.npcCerca) return null
     return this.hablar(this.npcCerca)
   }
 
@@ -247,240 +175,12 @@ export class PlazaRenderer {
 
   // Clic en un cartel: navegar hacia la puerta de ese edificio y entrar.
   irYEntrar(id) {
-    if (this.enEditor) return
     const e = EDIFICIOS.find((x) => x.id === id)
     if (e && e.escena) this.navegarAEdificio(e)
   }
 
-  // --- EDITOR DE ZONAS (E) ---
-
-  empezarArrastre(sx, sy) {
-    if (!this.editor) return false
-    const p = this.aNorm(sx, sy)
-    const umbral = HANDLE / ANCHO + 0.005
-
-    for (const e of EDIFICIOS) {
-      if (e.cartel && dist(p.x, p.y, e.cartel.x, e.cartel.y) < umbral) {
-        this.agarre = { edif: e, tipo: 'cartel', offX: p.x - e.cartel.x, offY: p.y - e.cartel.y }
-        return true
-      }
-    }
-    for (const e of EDIFICIOS) {
-      if (dist(p.x, p.y, e.puerta.x, e.puerta.y) < umbral) {
-        this.agarre = { edif: e, tipo: 'puerta', offX: p.x - e.puerta.x, offY: p.y - e.puerta.y }
-        return true
-      }
-    }
-    for (const e of EDIFICIOS) {
-      for (let i = 0; i < e.zona.length; i++) {
-        if (dist(p.x, p.y, e.zona[i].x, e.zona[i].y) < umbral) {
-          this.agarre = { edif: e, tipo: 'vertice', idx: i }
-          return true
-        }
-      }
-    }
-    for (const e of EDIFICIOS) {
-      if (puntoEnPoligono(p.x, p.y, e.zona)) {
-        this.agarre = { edif: e, tipo: 'mover', ultX: p.x, ultY: p.y }
-        return true
-      }
-    }
-    return false
-  }
-
-  arrastrar(sx, sy) {
-    if (!this.agarre) return
-    const p = this.aNorm(sx, sy)
-    const { edif, tipo } = this.agarre
-
-    if (tipo === 'cartel') {
-      edif.cartel.x = clamp(p.x - this.agarre.offX, 0, 1)
-      edif.cartel.y = clamp(p.y - this.agarre.offY, 0, 1)
-    } else if (tipo === 'puerta') {
-      edif.puerta.x = clamp(p.x - this.agarre.offX, 0, 1)
-      edif.puerta.y = clamp(p.y - this.agarre.offY, 0, 1)
-    } else if (tipo === 'vertice') {
-      edif.zona[this.agarre.idx].x = clamp(p.x, 0, 1)
-      edif.zona[this.agarre.idx].y = clamp(p.y, 0, 1)
-    } else if (tipo === 'mover') {
-      const dx = p.x - this.agarre.ultX
-      const dy = p.y - this.agarre.ultY
-      for (const v of edif.zona) { v.x = clamp(v.x + dx, 0, 1); v.y = clamp(v.y + dy, 0, 1) }
-      edif.puerta.x = clamp(edif.puerta.x + dx, 0, 1)
-      edif.puerta.y = clamp(edif.puerta.y + dy, 0, 1)
-      if (edif.cartel) {
-        edif.cartel.x = clamp(edif.cartel.x + dx, 0, 1)
-        edif.cartel.y = clamp(edif.cartel.y + dy, 0, 1)
-      }
-      this.agarre.ultX = p.x
-      this.agarre.ultY = p.y
-    }
-  }
-
-  terminarArrastre() {
-    this.agarre = null
-  }
-
-  agregarVertice(sx, sy) {
-    if (!this.editor) return
-    const p = this.aNorm(sx, sy)
-    for (const e of EDIFICIOS) {
-      if (!puntoEnPoligono(p.x, p.y, e.zona)) continue
-      let mejorI = 0
-      let mejorD = Infinity
-      for (let i = 0, j = e.zona.length - 1; i < e.zona.length; j = i++) {
-        const d = distASegmento(p, e.zona[j], e.zona[i])
-        if (d < mejorD) { mejorD = d; mejorI = i }
-      }
-      e.zona.splice(mejorI, 0, { x: p.x, y: p.y })
-      return
-    }
-  }
-
-  borrarVertice(sx, sy) {
-    if (!this.editor) return
-    const p = this.aNorm(sx, sy)
-    const umbral = HANDLE / ANCHO + 0.005
-    for (const e of EDIFICIOS) {
-      if (e.zona.length <= 3) continue
-      for (let i = 0; i < e.zona.length; i++) {
-        if (dist(p.x, p.y, e.zona[i].x, e.zona[i].y) < umbral) {
-          e.zona.splice(i, 1)
-          return
-        }
-      }
-    }
-  }
-
-  exportarZonas() {
-    const r = (n) => Math.round(n * 1000) / 1000
-    return EDIFICIOS.map((e) => ({
-      id: e.id,
-      zona: e.zona.map((v) => ({ x: r(v.x), y: r(v.y) })),
-      puerta: { x: r(e.puerta.x), y: r(e.puerta.y) },
-      ...(e.cartel ? { cartel: { x: r(e.cartel.x), y: r(e.cartel.y) } } : {})
-    }))
-  }
-
-  // --- EDITOR DE ZONA CAMINABLE (M) ---
-  // Edita el polígono ZONA_CAMINABLE: arrastrar vértices, doble-clic agrega
-  // un punto en el borde, clic derecho borra un punto.
-
-  caminableEmpezarArrastre(sx, sy) {
-    if (!this.editorCaminable) return false
-    const p = this.aNorm(sx, sy)
-    const umbral = HANDLE / ANCHO + 0.006
-    for (let i = 0; i < ZONA_CAMINABLE.length; i++) {
-      if (dist(p.x, p.y, ZONA_CAMINABLE[i].x, ZONA_CAMINABLE[i].y) < umbral) {
-        this.agarreCaminable = i
-        return true
-      }
-    }
-    return false
-  }
-
-  caminableArrastrar(sx, sy) {
-    if (this.agarreCaminable == null) return
-    const p = this.aNorm(sx, sy)
-    ZONA_CAMINABLE[this.agarreCaminable].x = clamp(p.x, 0, 1)
-    ZONA_CAMINABLE[this.agarreCaminable].y = clamp(p.y, 0, 1)
-  }
-
-  caminableTerminarArrastre() {
-    this.agarreCaminable = null
-  }
-
-  // Doble-clic: agrega un vértice en el borde más cercano.
-  caminableAgregar(sx, sy) {
-    if (!this.editorCaminable) return
-    const p = this.aNorm(sx, sy)
-    let mejorI = 0
-    let mejorD = Infinity
-    for (let i = 0, j = ZONA_CAMINABLE.length - 1; i < ZONA_CAMINABLE.length; j = i++) {
-      const d = distASegmento(p, ZONA_CAMINABLE[j], ZONA_CAMINABLE[i])
-      if (d < mejorD) { mejorD = d; mejorI = i }
-    }
-    ZONA_CAMINABLE.splice(mejorI, 0, { x: p.x, y: p.y })
-  }
-
-  // Clic derecho: borra el vértice bajo el cursor (mín 3).
-  caminableBorrar(sx, sy) {
-    if (!this.editorCaminable || ZONA_CAMINABLE.length <= 3) return
-    const p = this.aNorm(sx, sy)
-    const umbral = HANDLE / ANCHO + 0.006
-    for (let i = 0; i < ZONA_CAMINABLE.length; i++) {
-      if (dist(p.x, p.y, ZONA_CAMINABLE[i].x, ZONA_CAMINABLE[i].y) < umbral) {
-        ZONA_CAMINABLE.splice(i, 1)
-        return
-      }
-    }
-  }
-
-  exportarCaminable() {
-    const r = (n) => Math.round(n * 1000) / 1000
-    return ZONA_CAMINABLE.map((v) => ({ x: r(v.x), y: r(v.y) }))
-  }
-
-  // --- EDITOR DE CAMINOS (W) ---
-  // Elegís un par origen→destino (setPar) y vas marcando nodos del camino con clic.
-  // Arrastrar mueve un nodo. Clic derecho lo borra.
-
-  // Índice del nodo del camino activo bajo el punto, o -1.
-  nodoEn(p) {
-    const camino = this.caminoActivo()
-    if (!camino) return -1
-    const umbral = HANDLE / ANCHO + 0.008
-    for (let i = 0; i < camino.length; i++) {
-      if (dist(p.x, p.y, camino[i].x, camino[i].y) < umbral) return i
-    }
-    return -1
-  }
-
-  caminosEmpezar(sx, sy) {
-    if (!this.editorCaminos || !this.camDestino) return false
-    const p = this.aNorm(sx, sy)
-    const i = this.nodoEn(p)
-    if (i >= 0) { this.agarreNodo = i; return true } // agarra para arrastrar
-    // Clic en vacío: agrega un nodo al final del camino.
-    this.caminoActivo().push({ x: p.x, y: p.y })
-    this.agarreNodo = this.caminoActivo().length - 1
-    return true
-  }
-
-  caminosArrastrar(sx, sy) {
-    if (this.agarreNodo < 0) return
-    const camino = this.caminoActivo()
-    if (!camino) return
-    const p = this.aNorm(sx, sy)
-    camino[this.agarreNodo].x = clamp(p.x, 0, 1)
-    camino[this.agarreNodo].y = clamp(p.y, 0, 1)
-  }
-
-  caminosTerminar() {
-    this.agarreNodo = -1
-  }
-
-  caminosBorrar(sx, sy) {
-    if (!this.editorCaminos || !this.camDestino) return
-    const p = this.aNorm(sx, sy)
-    const i = this.nodoEn(p)
-    if (i >= 0) this.caminoActivo().splice(i, 1)
-  }
-
-  // Exporta todos los caminos definidos (objeto clave → nodos).
-  exportarCaminos() {
-    const r = (n) => Math.round(n * 1000) / 1000
-    const out = {}
-    for (const [k, nodos] of Object.entries(CAMINOS)) {
-      if (nodos.length) out[k] = nodos.map((n) => ({ x: r(n.x), y: r(n.y) }))
-    }
-    return out
-  }
-
   // --- UPDATE ---
   update(delta, vectorTeclado) {
-    if (this.enEditor) { this.tiempo += delta; return }
-
     // Durante la cinemática el input está bloqueado: solo avanzan tiempo y partículas
     // (los tweens GSAP mueven al player/NPCs desde afuera).
     if (this.modoCinematico) {
@@ -803,18 +503,8 @@ export class PlazaRenderer {
     if (this.fondoImg) ctx.drawImage(this.fondoImg, 0, 0, ANCHO, ALTO)
     else this.dibujarFondoRespaldo(ctx)
 
-    if (this.editor) {
-      this.dibujarEditorZonas(ctx)
-    } else if (this.editorCaminable) {
-      this.dibujarEditorCaminable(ctx)
-    } else if (this.editorCaminos) {
-      this.dibujarEditorCaminos(ctx)
-    } else if (this.editorNpcs) {
-      this.dibujarEditorNpcs(ctx)
-    } else {
-      this.dibujarPersonajes(ctx)
-      this.particulas.draw(ctx)
-    }
+    this.dibujarPersonajes(ctx)
+    this.particulas.draw(ctx)
   }
 
   // Jugador + NPCs ordenados por Y (los de más abajo tapan a los de más arriba).
@@ -865,217 +555,12 @@ export class PlazaRenderer {
     ctx.restore()
   }
 
-  // --- EDITOR DE NPCS (N) ---
-  // Cada NPC es un punto arrastrable sobre su sprite. Botón "Copiar NPCs JSON".
-
-  npcsEmpezar(sx, sy) {
-    if (!this.editorNpcs) return false
-    const p = this.aNorm(sx, sy)
-    const umbral = HANDLE / ANCHO + 0.015
-    for (const n of this.npcs) {
-      if (dist(p.x, p.y, n.pos.x, n.pos.y) < umbral) {
-        this.agarreNpc = n
-        return true
-      }
-    }
-    return false
-  }
-
-  npcsArrastrar(sx, sy) {
-    if (!this.agarreNpc) return
-    const p = this.aNorm(sx, sy)
-    this.agarreNpc.pos.x = clamp(p.x, 0, 1)
-    this.agarreNpc.pos.y = clamp(p.y, 0, 1)
-  }
-
-  npcsTerminar() {
-    this.agarreNpc = null
-  }
-
-  exportarNpcs() {
-    const r = (n) => Math.round(n * 1000) / 1000
-    return this.npcs.map((n) => ({ id: n.id, pos: { x: r(n.pos.x), y: r(n.pos.y) } }))
-  }
-
-  dibujarEditorNpcs(ctx) {
-    // Edificios atenuados de referencia
-    for (const e of EDIFICIOS) {
-      this.dibujarPoligono(ctx, e.zona, 'rgba(255, 178, 77, 0.05)', 'rgba(255, 178, 77, 0.25)')
-    }
-    for (const n of this.npcs) {
-      drawNpc(ctx, n.pos.x * ANCHO, n.pos.y * ALTO, n.pal, 0)
-      // Punto de agarre + nombre
-      ctx.beginPath()
-      ctx.arc(n.pos.x * ANCHO, n.pos.y * ALTO, HANDLE, 0, Math.PI * 2)
-      ctx.fillStyle = '#4da3ff'
-      ctx.fill()
-      ctx.strokeStyle = '#0d0b0f'
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.font = 'bold 13px monospace'
-      ctx.fillStyle = '#fff'
-      ctx.textAlign = 'center'
-      ctx.fillText(n.nombre, n.pos.x * ANCHO, n.pos.y * ALTO - 64)
-    }
-  }
-
-  // Punto de referencia de un "lugar": la puerta del edificio, o el spawn si es 'inicio'.
-  puntoLugar(id) {
-    if (id === 'inicio') return { ...POS_INICIAL_JUGADOR }
-    const e = EDIFICIOS.find((x) => x.id === id)
-    return e ? { ...e.puerta } : null
-  }
-
-  dibujarEditorCaminos(ctx) {
-    // Edificios atenuados de referencia
-    for (const e of EDIFICIOS) {
-      this.dibujarPoligono(ctx, e.zona, 'rgba(255, 178, 77, 0.05)', 'rgba(255, 178, 77, 0.25)')
-    }
-
-    const origen = this.puntoLugar(this.camOrigen)
-    const destino = this.camDestino ? this.puntoLugar(this.camDestino) : null
-    const camino = this.caminoActivo() || []
-
-    // Línea origen → nodos → destino
-    if (origen && destino) {
-      const pts = [origen, ...camino, destino]
-      ctx.strokeStyle = 'rgba(77, 163, 255, 0.85)'
-      ctx.lineWidth = 3
-      ctx.setLineDash([10, 8])
-      ctx.beginPath()
-      ctx.moveTo(pts[0].x * ANCHO, pts[0].y * ALTO)
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * ANCHO, pts[i].y * ALTO)
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
-
-    // Origen (verde) y destino (rojo)
-    if (origen) this.marcaLugar(ctx, origen, '#7bc96f', 'origen')
-    if (destino) this.marcaLugar(ctx, destino, '#d65a4a', 'destino')
-
-    // Nodos del camino activo (azules, numerados)
-    ctx.textAlign = 'center'
-    for (let i = 0; i < camino.length; i++) {
-      const n = camino[i]
-      ctx.beginPath()
-      ctx.arc(n.x * ANCHO, n.y * ALTO, HANDLE, 0, Math.PI * 2)
-      ctx.fillStyle = '#4da3ff'
-      ctx.fill()
-      ctx.strokeStyle = '#0d0b0f'
-      ctx.lineWidth = 2
-      ctx.stroke()
-    }
-  }
-
-  marcaLugar(ctx, p, color, label) {
-    ctx.beginPath()
-    ctx.arc(p.x * ANCHO, p.y * ALTO, HANDLE + 3, 0, Math.PI * 2)
-    ctx.fillStyle = color
-    ctx.fill()
-    ctx.strokeStyle = '#0d0b0f'
-    ctx.lineWidth = 2
-    ctx.stroke()
-    ctx.font = 'bold 13px monospace'
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'center'
-    ctx.fillText(label, p.x * ANCHO, p.y * ALTO - 20)
-  }
-
   dibujarFondoRespaldo(ctx) {
     const g = ctx.createRadialGradient(ANCHO / 2, ALTO / 2, 100, ANCHO / 2, ALTO / 2, 800)
     g.addColorStop(0, '#1a140f')
     g.addColorStop(1, '#0d0b0f')
     ctx.fillStyle = g
     ctx.fillRect(0, 0, ANCHO, ALTO)
-  }
-
-  centroide(poly) {
-    let cx = 0, cy = 0
-    for (const v of poly) { cx += v.x; cy += v.y }
-    return { x: (cx / poly.length) * ANCHO, y: (cy / poly.length) * ALTO }
-  }
-
-  dibujarEtiquetaHover(ctx, e) {
-    const c = this.centroide(e.zona)
-    let minY = 1
-    for (const v of e.zona) minY = Math.min(minY, v.y)
-    const ty = minY * ALTO - 14
-    ctx.font = 'bold 22px Cinzel, serif'
-    ctx.textAlign = 'center'
-    const ancho = ctx.measureText(e.nombre).width + 32
-    ctx.fillStyle = 'rgba(13, 11, 15, 0.88)'
-    ctx.strokeStyle = 'rgba(255, 178, 77, 0.6)'
-    ctx.lineWidth = 1.5
-    redondeado(ctx, c.x - ancho / 2, ty - 26, ancho, 36, 9)
-    ctx.fill()
-    ctx.stroke()
-    ctx.fillStyle = '#ffd27a'
-    ctx.fillText(e.nombre, c.x, ty)
-  }
-
-  dibujarPoligono(ctx, poly, fill, stroke) {
-    ctx.beginPath()
-    ctx.moveTo(poly[0].x * ANCHO, poly[0].y * ALTO)
-    for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x * ANCHO, poly[i].y * ALTO)
-    ctx.closePath()
-    ctx.fillStyle = fill
-    ctx.fill()
-    ctx.strokeStyle = stroke
-    ctx.lineWidth = 2
-    ctx.stroke()
-  }
-
-  dibujarVertices(ctx, poly, color) {
-    ctx.fillStyle = color
-    for (const v of poly) {
-      ctx.beginPath()
-      ctx.arc(v.x * ANCHO, v.y * ALTO, HANDLE, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
-
-  dibujarEditorZonas(ctx) {
-    for (const e of EDIFICIOS) {
-      this.dibujarPoligono(ctx, e.zona, 'rgba(255, 178, 77, 0.12)', 'rgba(255, 178, 77, 0.95)')
-      this.dibujarVertices(ctx, e.zona, '#ffd27a')
-
-      const dx = e.puerta.x * ANCHO
-      const dy = e.puerta.y * ALTO
-      ctx.beginPath()
-      ctx.arc(dx, dy, HANDLE, 0, Math.PI * 2)
-      ctx.fillStyle = '#7bc96f'
-      ctx.fill()
-      ctx.strokeStyle = '#0d0b0f'
-      ctx.lineWidth = 2
-      ctx.stroke()
-
-      // Cartel (punto azul)
-      if (e.cartel) {
-        ctx.beginPath()
-        ctx.arc(e.cartel.x * ANCHO, e.cartel.y * ALTO, HANDLE, 0, Math.PI * 2)
-        ctx.fillStyle = '#4da3ff'
-        ctx.fill()
-        ctx.strokeStyle = '#0d0b0f'
-        ctx.lineWidth = 2
-        ctx.stroke()
-      }
-
-      const c = this.centroide(e.zona)
-      ctx.font = 'bold 15px monospace'
-      ctx.fillStyle = '#fff'
-      ctx.textAlign = 'center'
-      ctx.fillText(e.id, c.x, c.y)
-    }
-  }
-
-  dibujarEditorCaminable(ctx) {
-    // Edificios atenuados como referencia
-    for (const e of EDIFICIOS) {
-      this.dibujarPoligono(ctx, e.zona, 'rgba(255, 178, 77, 0.06)', 'rgba(255, 178, 77, 0.3)')
-    }
-    // Zona caminable: relleno verde + borde + vértices
-    this.dibujarPoligono(ctx, ZONA_CAMINABLE, 'rgba(123, 201, 111, 0.18)', 'rgba(123, 201, 111, 0.95)')
-    this.dibujarVertices(ctx, ZONA_CAMINABLE, '#7bc96f')
   }
 }
 
@@ -1115,25 +600,6 @@ function puntoAfueraDePuerta(puerta) {
 
 function dist(ax, ay, bx, by) {
   return Math.hypot(ax - bx, ay - by)
-}
-
-function distASegmento(p, a, b) {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lenSq = dx * dx + dy * dy
-  let t = lenSq ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq : 0
-  t = Math.max(0, Math.min(1, t))
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
-}
-
-function redondeado(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
 }
 
 export { ANCHO, ALTO }

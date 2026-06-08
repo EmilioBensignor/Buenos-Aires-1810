@@ -56,7 +56,6 @@ const scene = reactive({
   transicionando: false,
   ultimoEdificio: null, // para reaparecer en la plaza afuera de su puerta
   ultimoInterior: null, // para volver del minijuego al interior
-  modoEdicion: false, // editor de mapeo activo: el juego se alinea a la izquierda
   cinematicaPendiente: null // 'derrota' | 'victoria' | null: la plaza la corre antes de RESULTADO (transitorio, no se persiste)
 })
 
@@ -64,7 +63,6 @@ const escenaActual = computed(() => scene.actual)
 const enTransicion = computed(() => scene.transicionando)
 const puedeVolver = computed(() => ESCENAS_CON_VOLVER.has(scene.actual))
 const esInterior = computed(() => INTERIOR_DE[scene.actual] != null)
-const modoEdicion = computed(() => scene.modoEdicion)
 
 // Victoria → salta a RESULTADO al instante. Derrota NO: te quedás en $0 donde estés
 // (interior/minijuego) y el game over se dispara recién al pisar la plaza
@@ -141,7 +139,6 @@ export const useSceneManager = () => ({
   enTransicion,
   puedeVolver,
   esInterior,
-  modoEdicion,
   ir,
   entrarA,
   irAJuego,
