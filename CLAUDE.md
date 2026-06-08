@@ -142,23 +142,24 @@ que el jugador, varía por `pal` = paleta + `oficio` = tocado/detalle). Coords N
   elegís el elemento **7 (npc)** y arrastrás; botón "Copiar NPCs" (incluye `interior` + array).
   Pegar las `pos` exportadas en `npcs.js`.
 
-## EDITORES VISUALES (calibración) — IMPORTANTE: sacar antes de publicar
+## EDITORES VISUALES — YA SACADOS (08/06/2026, para el MVP)
 
-El juego tiene HUDs de edición integrados para mapear zonas con el mouse y exportar
-JSON. **NO sacarlos hasta terminar el juego.** Se activan por tecla y muestran un
-panel de controles a la derecha (con el juego alineado a la izquierda).
+Los HUDs de edición (zonas/caminos/NPCs en la plaza con Shift+E/M/W/N; elementos 1-7 en
+interiores) se ELIMINARON antes de publicar. Toda la calibración ya está fija en los
+archivos de datos (`buildings.js`, `interiors.js`, `npcs.js`). El gameplay quedó intacto:
+`E` = hablar con NPC / interactuar con mesa; clic = caminar/entrar/hablar.
 
-**OJO — atajos cambiaron al sumar NPCs**: `E` (sola) ahora **habla** con el NPC cercano.
-Por eso los toggles de editor de la plaza pasaron a **Shift**.
+Si en el futuro hay que recalibrar algo espacial, recuperar los editores del historial o
+rehacerlos con el patrón canvas + "Copiar JSON" (ver "Patrón clave del proyecto").
 
-**En la plaza** (PlazaScene): `Shift+E` zonas de edificio · `Shift+M` zona caminable ·
-`Shift+W` caminos · `Shift+N` NPCs. (`E` sola = hablar.)
-**En interiores** (InteriorScene): `Shift+E` abre el editor; teclas `1`-`7` eligen qué
-editás (caminable/mesa/salida/spawn/obstáculo/cartel/npc), `N` nuevo obstáculo, `+/-` escala.
-(`E` sola = interactuar: hablar con NPC cercano, o disparar mesa/salida.)
-Cada editor tiene un botón "Copiar ..." que copia el JSON al portapapeles.
+Quedó fuera de archivo:
+- `index.vue` / `useSceneManager`: `modoEdicion` eliminado (el juego siempre va centrado).
+- `PlazaScene.vue` / `InteriorScene.vue`: solo handlers de juego (`@click`, `@mousemove` hover).
+- `game/plaza/PlazaScene.js` (1140→605 líneas) y `game/interiors/InteriorScene.js` (514→190):
+  sin métodos `toggleEditor*`/`exportar*`/`dibujarEditor*`/arrastre. `draw()` solo dibuja personajes.
+- El **panel DEV del Garito** (botones GANAR/PERDER) SE MANTIENE — requisito del profe.
 
-### Cómo sacar los editores (cuando el juego esté terminado)
+<details><summary>Cómo se sacaron (referencia histórica)</summary>
 
 Los editores son self-contained; sacarlos no afecta el gameplay. Pasos:
 
@@ -186,9 +187,10 @@ Los editores son self-contained; sacarlos no afecta el gameplay. Pasos:
    (`hablar`/`clickNpc`, `interactuar`, `npcCerca`, colisión).
 5. **`useSceneManager.js`**: borrar `scene.modoEdicion`, el computed `modoEdicion` y su export.
 6. **`index.vue`**: quitar el `:class` condicional de `modoEdicion`, dejar `justify-center`.
-7. **`GaritoScene.vue`**: el panel DEV (botones GANAR/PERDER, llaman `forzarVictoria`/
-   `forzarDerrota`) es requisito del profe — NO sacarlo salvo que se pida. Ya no hay
-   atajos de teclado G/P (se sacaron, son solo botones).
+7. **`GaritoScene.vue`**: el panel DEV (botones GANAR/PERDER) — NO se sacó (requisito del
+   profe). Ahora llaman `devGanar`/`devPerder` → `irAPlazaConCinematica` (ya no `forzar*`).
+
+</details>
 
 ## Economía (`useGameConfig.js`)
 - Moneda: pesos. Internamente todo en **centavos enteros** (sin floats). 1 peso = 100¢.
