@@ -1,0 +1,23 @@
+# Nuxt
+.nuxt
+.output
+.data
+dist
+
+# Dependencias
+node_modules
+
+# Logs
+*.log
+npm-debug.log*
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Sistema
+.DS_Store
+
+# Las referencias visuales NO van al repo (son solo guía de diseño)
+/referencias

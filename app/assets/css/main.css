@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variables de paleta para usar desde canvas si hace falta */
+:root {
+  --noche: #0d0b0f;
+  --farol: #ffb24d;
+  --dorado: #ffd27a;
+  --brasa: #e8731f;
+}
+
+html,
+body,
+#__nuxt {
+  height: 100%;
+  margin: 0;
+  background: var(--noche);
+  color: #f0e6d2;
+  font-family: 'Crimson Pro', Georgia, serif;
+  overflow: hidden;
+}
+
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

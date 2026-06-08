@@ -1,0 +1,5 @@
+# pnpm 10+ bloquea build scripts por defecto.
+# Estas dependencias necesitan ejecutar sus scripts de build.
+onlyBuiltDependencies:
+  - esbuild
+  - '@parcel/watcher'
