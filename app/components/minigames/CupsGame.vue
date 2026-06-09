@@ -7,7 +7,7 @@ import { useAudio } from '~/composables/useAudio'
 import { generarBarajada, duracionSwap, resolverCubiletes } from '~/game/minigames/cups'
 
 const config = useGameConfig()
-const { state, apostar, cobrar, subirNivel, reiniciarNivel } = useGameState()
+const { state, apostar, cobrar, subirNivel, reiniciarNivel, registrarEvento } = useGameState()
 const { volver } = useSceneManager()
 const { sfx } = useAudio()
 
@@ -40,6 +40,7 @@ function elegirApuesta(monto) {
 async function comenzar() {
   if (!apuesta.value) return
   if (!apostar(apuesta.value)) return
+  registrarEvento('jugo', { juego: 'cubiletes' })
 
   resultado.value = null
   orden.value = [0, 1, 2]
@@ -131,11 +132,15 @@ function elegir(posVisual) {
   if (res.gano) {
     const ganancia = Math.round(apuesta.value * res.multiplicador)
     cobrar(ganancia)
+    // Evento con el nivel CON EL QUE se ganó (antes de subir).
+    registrarEvento('gano', { juego: 'cubiletes', apuesta: apuesta.value, ganancia })
+    registrarEvento('cubiletesNivel', { nivel: state.nivel.cubiletes })
     subirNivel('cubiletes') // ganaste → más difícil la próxima
     sfx('plata')
     resultado.value = { gano: true, ganancia }
   } else {
     cobrar(0) // jugada terminada sin ganar → evalúa derrota
+    registrarEvento('perdio', { juego: 'cubiletes' })
     reiniciarNivel('cubiletes') // erraste → vuelve a fácil
     resultado.value = { gano: false, ganancia: 0 }
   }

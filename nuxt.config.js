@@ -10,10 +10,10 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  // GSAP se importa dinámico en varios minijuegos. Pre-declararla evita que Vite
-  // re-optimice deps a mitad del arranque (error 504 "Outdated Optimize Dep").
+  // GSAP (minijuegos/cinemáticas) y Howler (audio) se importan dinámico. Pre-declararlas
+  // evita que Vite re-optimice deps a mitad del arranque (error 504 "Outdated Optimize Dep").
   vite: {
-    optimizeDeps: { include: ['gsap'] }
+    optimizeDeps: { include: ['gsap', 'howler'] }
   },
 
   app: {

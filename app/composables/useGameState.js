@@ -46,6 +46,28 @@ const state = reactive({
 
 const NIVEL_MAX = 10
 
+// Bus de eventos del juego: useLogros (u otros) se suscriben con onEvento.
+// useGameState solo emite; no conoce a sus consumidores.
+const listeners = new Set()
+
+function registrarEvento(tipo, datos = {}) {
+  for (const fn of listeners) {
+    try { fn({ tipo, ...datos }) } catch {}
+  }
+}
+
+function onEvento(fn) {
+  listeners.add(fn)
+  return () => listeners.delete(fn)
+}
+
+// Callbacks que corren al empezar partida nueva (reiniciar). useLogros corta su racha acá.
+const onReiniciarCbs = new Set()
+function onReiniciarPartida(fn) {
+  onReiniciarCbs.add(fn)
+  return () => onReiniciarCbs.delete(fn)
+}
+
 // Sube un nivel de dificultad (con tope). Llamar al ganar.
 function subirNivel(juego) {
   if (state.nivel[juego] == null) return
@@ -115,6 +137,7 @@ function reiniciar() {
   state.edificioVisitado = {}
   state.nivel = { sapo: 0, cubiletes: 0 }
   state.ultimoDelta = 0
+  for (const fn of onReiniciarCbs) { try { fn() } catch {} }
 }
 
 export const useGameState = () => ({
@@ -129,5 +152,8 @@ export const useGameState = () => ({
   saldarDeuda,
   marcarResultado,
   chequearDerrota,
-  reiniciar
+  reiniciar,
+  registrarEvento,
+  onEvento,
+  onReiniciarPartida
 })

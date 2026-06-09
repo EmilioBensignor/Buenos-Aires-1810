@@ -7,7 +7,7 @@ import { useAudio } from '~/composables/useAudio'
 import { generarMano, cobroMano } from '~/game/minigames/bingo'
 
 const config = useGameConfig()
-const { state, apostar, cobrar } = useGameState()
+const { state, apostar, cobrar, registrarEvento } = useGameState()
 const { volver } = useSceneManager()
 const { sfx } = useAudio()
 
@@ -52,6 +52,7 @@ function elegirApuesta(monto) {
 async function empezar() {
   if (!apuesta.value) return
   if (!apostar(apuesta.value)) return
+  registrarEvento('jugo', { juego: 'bingo' })
 
   cancelado = false
   resultado.value = null
@@ -207,6 +208,12 @@ function finalizar() {
     ganancia,
     ganasteLinea: mano.ganadorLinea === 0,
     ganasteBingo: mano.ganadorBingo === 0
+  }
+  if (gano) {
+    registrarEvento('gano', { juego: 'bingo', apuesta: apuesta.value, ganancia })
+    if (resultado.value.ganasteLinea && resultado.value.ganasteBingo) registrarEvento('bingoDoble', {})
+  } else {
+    registrarEvento('perdio', { juego: 'bingo' })
   }
   fase.value = 'resultado'
 }

@@ -7,7 +7,7 @@ import { useAudio } from '~/composables/useAudio'
 import { tirarDados, resolverDados } from '~/game/minigames/dice'
 
 const config = useGameConfig()
-const { state, apostar, cobrar } = useGameState()
+const { state, apostar, cobrar, registrarEvento } = useGameState()
 const { volver } = useSceneManager()
 const { sfx } = useAudio()
 
@@ -39,6 +39,7 @@ function elegirPrediccion(p) {
 async function tirar() {
   if (!apuesta.value || !prediccion.value || tirando.value) return
   if (!apostar(apuesta.value)) return
+  registrarEvento('jugo', { juego: 'dados' })
 
   tirando.value = true
   fase.value = 'tirar'
@@ -90,9 +91,12 @@ function finalizarTirada(final) {
   if (res.gano) {
     const ganancia = Math.round(apuesta.value * res.multiplicador)
     cobrar(ganancia)
+    registrarEvento('gano', { juego: 'dados', apuesta: apuesta.value, ganancia })
+    if (prediccion.value === 'exacto') registrarEvento('dadosExacto7', {})
     resultado.value = { gano: true, ganancia, suma: final.suma }
   } else {
     cobrar(0) // jugada terminada sin ganar → evalúa derrota
+    registrarEvento('perdio', { juego: 'dados' })
     resultado.value = { gano: false, ganancia: 0, suma: final.suma }
   }
   // Primero se muestra la suma; tras un respiro aparece el veredicto (Ganaste/Perdiste).

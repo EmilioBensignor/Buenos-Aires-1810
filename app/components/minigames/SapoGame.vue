@@ -8,7 +8,7 @@ import { useAudio } from '~/composables/useAudio'
 import { resolverSapo, zonasSapo } from '~/game/minigames/sapo'
 
 const config = useGameConfig()
-const { state, apostar, cobrar, subirNivel, reiniciarNivel } = useGameState()
+const { state, apostar, cobrar, subirNivel, reiniciarNivel, registrarEvento } = useGameState()
 const { volver } = useSceneManager()
 const { sfx } = useAudio()
 const loop = useGameLoop()
@@ -43,6 +43,7 @@ function elegirApuesta(monto) {
 function comenzar() {
   if (!apuesta.value) return
   if (!apostar(apuesta.value)) return
+  registrarEvento('jugo', { juego: 'sapo' })
 
   resultado.value = null
   fase.value = 'jugando'
@@ -73,6 +74,8 @@ async function tirar() {
   if (res.gano) {
     const ganancia = Math.round(apuesta.value * res.pago)
     cobrar(ganancia)
+    registrarEvento('gano', { juego: 'sapo', apuesta: apuesta.value, ganancia })
+    if (res.pago >= pagoMax) registrarEvento('sapoX3', {}) // embocó la franja del x3
     subirNivel('sapo') // ganaste → más difícil la próxima
     sfx('plata')
     resultado.value = { gano: true, ganancia, pago: res.pago }
@@ -80,6 +83,7 @@ async function tirar() {
     setTimeout(() => (flash.value = false), 350)
   } else {
     cobrar(0) // jugada terminada sin ganar → evalúa derrota
+    registrarEvento('perdio', { juego: 'sapo' })
     reiniciarNivel('sapo') // erraste → vuelve a fácil
     resultado.value = { gano: false, ganancia: 0, pago: 0 }
   }

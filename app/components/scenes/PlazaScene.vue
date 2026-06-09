@@ -11,8 +11,14 @@ import NpcDialog from '~/components/ui/NpcDialog.vue'
 
 const config = useGameConfig()
 const { entrarA, scene, ir, ESCENAS } = useSceneManager()
-const { state, chequearDerrota, marcarResultado } = useGameState()
+const { state, chequearDerrota, marcarResultado, registrarEvento } = useGameState()
 const { arrancarPasos, pararPasos } = useAudio()
+
+// Abre la caja de diálogo de un NPC y registra el evento (para el logro "Conocido en la plaza").
+function abrirDialogo(d) {
+  dialogo.value = d
+  if (d?.id) registrarEvento('hablo', { npcId: d.id })
+}
 
 const canvasRef = ref(null)
 let renderer = null
@@ -54,7 +60,7 @@ onMounted(async () => {
 
   // El player llegó caminando a un NPC → abrir su diálogo.
   renderer.onHablar = (d) => {
-    dialogo.value = d
+    abrirDialogo(d)
   }
 
   carteles.value = renderer.carteles()
@@ -115,7 +121,7 @@ function onKey(e) {
   // Hablar con NPC.
   if (k === 'e' && !e.shiftKey) {
     const d = renderer.hablarConCerca()
-    if (d) dialogo.value = d
+    if (d) abrirDialogo(d)
   }
 }
 
@@ -124,7 +130,7 @@ function onClick(e) {
   const { x, y } = aCanvas(e)
   // Clic sobre un NPC cercano = hablarle; si no, navegación normal.
   const d = renderer.clickNpc(x, y)
-  if (d) { dialogo.value = d; return }
+  if (d) { abrirDialogo(d); return }
   renderer.clickEn(x, y)
 }
 

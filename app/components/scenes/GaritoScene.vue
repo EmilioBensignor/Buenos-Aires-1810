@@ -5,7 +5,7 @@ import { useSceneManager } from '~/composables/useSceneManager'
 import { useAudio } from '~/composables/useAudio'
 import { formatMoneda, deudaEnCentavos } from '~/composables/useGameConfig'
 
-const { state, puedeleSaldar, saldarDeuda } = useGameState()
+const { state, puedeleSaldar, saldarDeuda, registrarEvento } = useGameState()
 const { volverAPlaza, irAPlazaConCinematica } = useSceneManager()
 const { sfx } = useAudio()
 
@@ -19,6 +19,9 @@ const progreso = computed(() => Math.min(1, state.plata / state.deuda))
 
 function intentarSaldar() {
   if (puedeleSaldar.value) {
+    // Evento ANTES de saldar: la plata todavía refleja el momento de saldar (para los
+    // logros del garito). Los niveles de skill no los toca saldarDeuda.
+    registrarEvento('saldo', { nivelSapo: state.nivel.sapo, nivelCubiletes: state.nivel.cubiletes })
     saldarDeuda() // descuenta la deuda; la victoria la sella la cinemática
     irAPlazaConCinematica('victoria')
   } else {

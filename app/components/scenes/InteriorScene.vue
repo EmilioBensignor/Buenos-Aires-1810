@@ -5,11 +5,19 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useGameLoop } from '~/composables/useGameLoop'
 import { useInput } from '~/composables/useInput'
 import { useSceneManager, INTERIOR_DE } from '~/composables/useSceneManager'
+import { useGameState } from '~/composables/useGameState'
 import { INTERIORES } from '~/game/interiors/interiors'
 import { InteriorRenderer, ANCHO, ALTO } from '~/game/interiors/InteriorScene'
 import NpcDialog from '~/components/ui/NpcDialog.vue'
 
 const { escenaActual, irAJuego, volverAPlaza } = useSceneManager()
+const { registrarEvento } = useGameState()
+
+// Abre la caja de diálogo de un NPC y registra el evento (logro "Conocido en la plaza").
+function abrirDialogo(d) {
+  dialogo.value = d
+  if (d?.id) registrarEvento('hablo', { npcId: d.id })
+}
 
 const canvasRef = ref(null)
 let renderer = null
@@ -60,7 +68,7 @@ function onKey(e) {
   if (k === 'e') {
     // interactuar() prioriza hablar con NPC cercano (devuelve {nombre,texto}).
     const d = renderer.interactuar()
-    if (d) dialogo.value = d
+    if (d) abrirDialogo(d)
   }
 }
 
@@ -68,7 +76,7 @@ function onClick(e) {
   const { x, y } = aCanvas(e)
   // Clic sobre un NPC cercano = hablarle; si no, caminar.
   const d = renderer.clickNpc(x, y)
-  if (d) { dialogo.value = d; return }
+  if (d) { abrirDialogo(d); return }
   renderer.clickEn(x, y)
 }
 

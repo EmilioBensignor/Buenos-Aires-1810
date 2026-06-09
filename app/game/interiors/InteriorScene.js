@@ -106,7 +106,7 @@ export class InteriorRenderer {
     const i = this.indiceDialogo[n.id] || 0
     const texto = n.dialogos[i % n.dialogos.length]
     this.indiceDialogo[n.id] = i + 1
-    return { nombre: n.nombre, texto }
+    return { id: n.id, nombre: n.nombre, texto }
   }
 
   // --- UPDATE ---

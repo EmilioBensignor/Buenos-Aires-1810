@@ -12,7 +12,7 @@ const config = useGameConfig()
 const { escenaActual, puedeVolver, esInterior, volver, volverAPlaza } = useSceneManager()
 const { muteado, toggleMute } = useAudio()
 
-const emit = defineEmits(['ayuda'])
+const emit = defineEmits(['ayuda', 'logros'])
 
 const plataMostrada = ref(state.plata)
 const flash = ref(null) // 'gana' | 'pierde' | null
@@ -85,6 +85,14 @@ watch(
         @click="emit('ayuda')"
       >
         <span class="font-display text-lg leading-none">?</span>
+      </button>
+      <button
+        class="size-9 flex justify-center items-center bg-noche border border-farol/20 hover:border-farol/50 rounded-lg text-dorado/80 hover:text-dorado transition-colors duration-200"
+        title="Logros"
+        aria-label="Ver logros"
+        @click="emit('logros')"
+      >
+        <span class="text-lg leading-none">🏆</span>
       </button>
       <button
         class="size-9 flex justify-center items-center bg-noche border border-farol/20 hover:border-farol/50 rounded-lg text-dorado/80 hover:text-dorado transition-colors duration-200"

@@ -24,8 +24,8 @@ const SFX = {
   tirarDados: { archivo: 'tirar-dados.mp3', vol: 0.4 }, // DiceGame (animación ~3.4s)
   repartirNaipe: { archivo: 'repartir-naipes.mp3', vol: 0.6 }, // CardsGame: por CADA carta
   moverCubiletes: { archivo: 'mover-cubiletes.mp3', vol: 0.7 }, // CupsGame: barajado
-  plata: { archivo: 'plata.mp3', vol: 0.4 }, // ganaste cualquier minijuego (~1.25s)
-  dialogoNpc: { archivo: 'dialogo-npc.mp3', vol: 0.4 }, // diálogo NPC (~2.9s); se corta al cerrar/alejarse
+  plata: { archivo: 'plata.mp3', vol: 0.2 }, // ganaste cualquier minijuego (~1.25s)
+  dialogoNpc: { archivo: 'dialogo-npc.mp3', vol: 0.2 }, // diálogo NPC (~2.9s); se corta al cerrar/alejarse
 
   // --- Finales (únicos de ganar/perder; no hay sonido por mano individual) ---
   victoria: { archivo: 'ganar.mp3', vol: 0.4 }, // saldaste la deuda
@@ -35,7 +35,8 @@ const SFX = {
 
   // --- UI ---
   click: { archivo: 'clic.mp3', vol: 0.4 }, // cualquier <button> (global, suena seguido → bajo)
-  error: { archivo: 'error.mp3', vol: 0.6 } // intentar saldar la deuda sin tener la plata
+  error: { archivo: 'error.mp3', vol: 0.6 }, // intentar saldar la deuda sin tener la plata
+  logro: { archivo: 'logro.mp3', vol: 0.5 } // logro desbloqueado (toast tipo Steam)
 }
 
 // Lee la config de audio de localStorage. Retrocompat: el formato viejo era el
@@ -188,15 +189,24 @@ function pararPasos() {
 
 // Corta/restablece todo el audio. Persiste. Si vuelve a sonar y la música no
 // estaba reproduciéndose, la arranca.
+// `muteado.value` es la ÚNICA fuente de verdad: forzamos a Howler a coincidir. La
+// música usa html5:true y a veces no "agarra" el .mute() (queda desincronizada del
+// estado Vue → el botón parece trabado). Por eso, además del mute, re-aplicamos el
+// volumen explícito de la música como respaldo.
 function toggleMute() {
-  muteado.value = !muteado.value
+  const m = !muteado.value
+  muteado.value = m
   guardarConfig()
 
-  if (musica) musica.mute(muteado.value)
-  if (pasos) pasos.mute(muteado.value)
-  Object.values(sonidos).forEach((s) => s.mute(muteado.value))
+  if (pasos) pasos.mute(m)
+  Object.values(sonidos).forEach((s) => s.mute(m))
 
-  if (!muteado.value && musica && !musica.playing()) musica.play()
+  if (musica) {
+    musica.mute(m)
+    // Respaldo para el html5 desincronizado: el volumen real refleja el estado.
+    musica.volume(m ? 0 : VOL_MUSICA_BASE * volMusica.value)
+    if (!m && !musica.playing()) musica.play()
+  }
 }
 
 // Ajusta el volumen de la música (0..1) en vivo y persiste.

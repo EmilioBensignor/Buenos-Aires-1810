@@ -11,6 +11,7 @@ const mostrarBarra = computed(
 )
 
 const ayudaAbierta = ref(false)
+const galeriaAbierta = ref(false)
 
 // La primera vez que se pisa la plaza, mostrar el tutorial de controles (una sola
 // vez por dispositivo). Después queda siempre reabrible con el botón "?".
@@ -26,7 +27,7 @@ watch(escenaActual, (escena) => {
 
 <template>
   <div class="w-[1440px] flex flex-col">
-    <TopBar v-if="mostrarBarra" @ayuda="ayudaAbierta = true" />
+    <TopBar v-if="mostrarBarra" @ayuda="ayudaAbierta = true" @logros="galeriaAbierta = true" />
 
     <!-- Frame de juego, pegado abajo -->
     <div class="w-full h-[800px] relative bg-noche overflow-hidden">
@@ -44,8 +45,14 @@ watch(escenaActual, (escena) => {
       <!-- Aviso "ya podés saldar" (global, sobre el frame de juego) -->
       <AvisoSaldar />
 
+      <!-- Toast de logro desbloqueado (cola, global) -->
+      <ToastLogro />
+
       <!-- Overlay de ayuda (controles) -->
       <ControlesAyuda v-if="ayudaAbierta" modal @cerrar="ayudaAbierta = false" />
+
+      <!-- Galería de logros -->
+      <GaleriaLogros v-if="galeriaAbierta" @cerrar="galeriaAbierta = false" />
 
       <!-- Fundido negro entre escenas -->
       <div

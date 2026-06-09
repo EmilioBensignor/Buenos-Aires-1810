@@ -122,9 +122,9 @@ que el jugador, varía por `pal` = paleta + `oficio` = tocado/detalle). Coords N
 
 - **Catálogo**: `NPCS_PLAZA[]` (plaza) y `NPCS_INTERIOR{}` (clave = id de interior). Cada NPC:
   `{ id, nombre, pos:{x,y}, pal:{...,oficio}, dialogos:[] }`.
-- **11 NPCs cerrados** (posición calibrada + textos finales, alineados con la mecánica de cada juego):
+- **10 NPCs cerrados** (posición calibrada + textos finales, alineados con la mecánica de cada juego):
   - Plaza (4): San Martín, Belgrano, Moreno, El Caído (ciudadano fundido en la calle).
-  - Interiores (1 c/u): Pulpero, Comerciante, Guardia, Feriante, La Pocha (campeona del bingo), Mafioso.
+  - Interiores (6, 1 c/u): Pulpero, Comerciante, Guardia, Feriante, La Pocha (campeona del bingo), Mafioso.
 - **Oficios** (en `drawNpc.js`, switch `dibujarOficio`): `bicornio` `galera` `galeraOscura`
   `anteojos` `morrion` `delantal` `panuelo` `andrajo`. Cada uno = otro tocado/detalle.
 - **Interacción** (reusa el patrón de la mesa): el NPC **frena** al jugador (colisión por
@@ -440,31 +440,81 @@ GSAP, ritmo y delay de viejas afinados, badges de premio (tu cartón + campeonas
   **espacian con el progreso** (`this.time()`/`this.progress()` del tween: ~45ms al inicio
   → ~320ms al final) para que el resultado se "asiente" en vez de cortar de golpe.
 
-**NPCs: CERRADO** — 11 personajes pixel-art por código (4 plaza + 1 por interior), posiciones
-calibradas con el editor visual y textos finales (rotan línea al hablar, alineados con la
+**NPCs: CERRADO** — 10 personajes pixel-art por código (4 plaza + 1 por interior, 6 interiores),
+posiciones calibradas con el editor visual y textos finales (rotan línea al hablar, alineados con la
 mecánica de cada juego). Interacción acercarse → "E Hablar" → `NpcDialog`, el NPC frena al
 jugador. Editor: ⇧N en plaza, elemento 7 en interiores. Ver sección "NPCs" arriba. Nada pendiente.
 
 **MVP listo para subir (08/06/2026).** Editores visuales SACADOS (ver "Dead code"). Solo quedan
-4 pendientes: Audio, Logros, Leaderboard, Cheaterboard.
+2 pendientes: Leaderboard, Cheaterboard (Audio y Logros ya cerrados).
 
-### Pendientes (los únicos 4)
-1. **Audio** — EN CURSO (lo trabaja el usuario). Estructura lista (`useAudio.js` + SFX cableados en
-   cinemáticas/minijuegos/UI, switch+sliders de volumen); falta pegar/afinar los .mp3. Ver "Audio".
-2. **Logros tipo Steam** — achievements desbloqueables (ej: "Primer triunfo", "Saldaste la deuda",
-   "Bingo + Línea en la misma mano", "Ganaste en los 5 minijuegos", "Quedaste en $0 y remontaste").
-   Store en localStorage (como el resto del estado), toast al desbloquear, pantalla para verlos.
-   Apoyarse en eventos de `useGameState` (cobrar, saldar, derrota). SIN EMPEZAR.
-3. **Leaderboard** — tabla de mejores resultados. Definir métrica (menos manos para saldar, tiempo,
+### Pendientes (los únicos 2)
+1. **Leaderboard** — tabla de mejores resultados. Definir métrica (menos manos para saldar, tiempo,
    plata máxima). Requiere backend (Supabase `supabase-benteveo`, hoy no integrado) o local.
    Coordinar con Cheaterboard. SIN EMPEZAR.
-4. **Cheaterboard / anti-trampa** — el save se guarda plano en `plaza1810_state_v2`, editable a mano.
-   Definir: validación/firma del save, o mover la verdad al server (Supabase). Relevante si hay
-   leaderboard real. SIN EMPEZAR.
+2. **Cheaterboard / anti-trampa** — el save se guarda plano en `plaza1810_state_v2` y los logros en
+   `plaza1810_logros_v1`, ambos editables a mano. Definir: validación/firma del save, o mover la
+   verdad al server (Supabase). Relevante si hay leaderboard real. SIN EMPEZAR. (Nota: editar el
+   localStorage a mano NO se refleja en el state reactivo en vivo sin recargar — mini-fricción
+   anti-trampa accidental, pero el save sigue siendo editable + recargable.)
 
-Todo lo demás está CERRADO: estructura, 5 minijuegos, NPCs, cinemáticas victoria/derrota, bienvenida,
-ayuda, avisos, regla de derrota diferida. Decisiones: sprites quedan pixel-art por código (no se
-cambian); narrativa, easter eggs y pulido visual fino descartados/suficientes para el MVP.
+Todo lo demás está CERRADO: estructura, 5 minijuegos, NPCs, audio, logros, cinemáticas
+victoria/derrota, bienvenida, ayuda, avisos, regla de derrota diferida. Decisiones: sprites quedan
+pixel-art por código (no se cambian); narrativa, easter eggs y pulido visual fino
+descartados/suficientes para el MVP.
+
+## Logros tipo Steam — CERRADO (09/06/2026)
+
+20 logros desbloqueables, completables al 100%, validados uno por uno por el usuario. Personales por
+dispositivo (localStorage), sin backend. Spec + plan en `docs/superpowers/`
+(`specs/2026-06-09-logros-design.md`, `plans/2026-06-09-logros.md`).
+
+### Arquitectura (bus de eventos + composable + UI)
+- **Bus de eventos** en `useGameState`: `registrarEvento(tipo, datos)` (solo emite) + `onEvento(fn)`
+  (suscribe, devuelve unsub) + `onReiniciarPartida(fn)` (corta la racha en partida nueva, lo llama
+  `reiniciar()`). `useGameState` NO conoce a sus consumidores (desacoplado).
+- **`app/composables/logros-catalogo.mjs`**: los 20 logros como data pura (`.mjs` para testear desde
+  node). Cada uno `{ id, nombre, desc, icono }`. Campo `secreto` reservado (no usado).
+- **`app/composables/logros-reglas.mjs`**: lógica PURA (sin Vue/localStorage/tiempo). `storeInicial()`,
+  `procesarEvento(store, evento)` y `procesarState(store, snapshot)` → `{ store, nuevos: [ids] }`;
+  `reiniciarPartida(store)` corta racha+tocoFondo. `desbloquear` idempotente. Constantes: `TOTAL_NPCS=10`,
+  `APUESTA_MAX=500`, `PLATA_BOLSA_GORDA=5000`, `PLATA_FONDO=100` (centavos). Testeada por node.
+- **`app/composables/useLogros.js`**: singleton reactivo. Envuelve las reglas con reactividad +
+  persistencia (`plaza1810_logros_v1`: solo `desbloqueados`/`contadores`/`sets`; racha+tocoFondo NO
+  se persisten) + suscripción al bus + watcher de `state.plata/resultado` + cola de toasts. Expone
+  `catalogo`, `desbloqueados`, `progreso {hechos,total}`, `toastActual`, `descartarToast`.
+- **UI**: `ToastLogro.vue` (toast estilo `AvisoSaldar`, acento dorado, con COLA — `mostrar()` dispara
+  `sfx('logro')`) + `GaleriaLogros.vue` (modal estilo `ControlesAyuda`, grid 2-col, contador X/20,
+  bloqueados en gris). Botón 🏆 en `TopBar` (emite `logros`) → `GameRoot` togglea la galería (igual
+  que ayuda/`ControlesAyuda`). Ambos montados en `GameRoot`.
+
+### Eventos emitidos (cableado quirúrgico, 1-3 líneas por archivo)
+- **5 minijuegos**: `jugo {juego}` al apostar; `gano {juego,apuesta,ganancia}` / `perdio {juego}` al
+  resolver; + específicos: `dadosExacto7` (DiceGame, `prediccion==='exacto'`), `sapoX3` (SapoGame,
+  `res.pago>=pagoMax`), `bingoDoble` (BingoGame, `ganasteLinea&&ganasteBingo`), `cubiletesNivel {nivel}`
+  (CupsGame, nivel ANTES de subir). Naipes empate NO emite gano/perdio.
+- **NPCs**: `hablo {npcId}` desde un helper `abrirDialogo(d)` único en `PlazaScene.vue` e
+  `InteriorScene.vue` (los renderers `hablar()` ahora devuelven `id`).
+- **Garito**: `saldo {nivelSapo,nivelCubiletes}` SOLO en el saldado real (no en DEV GANAR/PERDER).
+
+### Catálogo de los 20 (agrupados por tipo en la galería, fácil→difícil)
+Progresión (1-5): primera_mano · primer_tropiezo · timbero (5 juegos) · conocido (10 NPCs) ·
+libre_deuda. Grind (6-10): manos_calientes (25 gana) · curtido (25 pierde) · bolsa_gorda ($50) ·
+patron (100 jugadas) · sin_mango (game over). Skill (11-15): boca_sapo · linea_bingo · siete_clavado ·
+segui_bolita (cubiletes nivel≥3) · las_sabe_todas (ganar en los 5). Meta (16-20): en_racha (5
+seguidas) · de_rodillas (tocar $1 + saldar) · audaz (ganar apostando $5) · maestro_garito (saldar con
+sapo+cubiletes nivel≥5) · completista (los otros 19, automático).
+
+### Notas
+- **Persisten entre partidas** (reiniciar() NO los borra). Contadores acumulados de por-vida; racha
+  transitoria (se corta al perder y en partida nueva). Decisión: localStorage ahora, sync a Supabase
+  después (cuando se arme identidad+backend para el Leaderboard).
+- **`segui_bolita`** requiere ~4 victorias seguidas en cubiletes (el nivel sube al ganar, se resetea
+  al perder; el evento lleva el nivel CON EL QUE se ganó). Es duro pero intencional.
+- **Editar el localStorage a mano NO se refleja sin recargar** (el store reactivo se cargó una vez).
+  Para forzar/testear logros: editar el LS y `location.reload()`, o tocar el `state` reactivo en vivo
+  (durante el testing se expuso `window.__state` temporal, ya sacado). Conecta con el pendiente
+  Cheaterboard.
 
 ## Dead code — YA BORRADO (07/06/2026)
 Se eliminaron los huérfanos: `game/plaza/pathfinding.js`, `game/render/isoMath.js` (iso viejo),

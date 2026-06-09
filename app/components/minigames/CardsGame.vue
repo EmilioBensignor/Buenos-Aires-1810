@@ -7,7 +7,7 @@ import { useAudio } from '~/composables/useAudio'
 import { nuevaPartidaNaipes, jugarRonda, resultadoSerie, RONDAS_PARA_GANAR } from '~/game/minigames/cards'
 
 const config = useGameConfig()
-const { state, apostar, cobrar } = useGameState()
+const { state, apostar, cobrar, registrarEvento } = useGameState()
 const { volver, volverAPlaza } = useSceneManager()
 const { sfx } = useAudio()
 
@@ -25,6 +25,7 @@ const scoreCro = ref(0)
 const resultadoFinal = ref(null)
 const procesando = ref(false) // bloquea input durante animaciones
 const rondaResuelta = ref(false) // ronda revelada, esperando que aprete "Siguiente"
+const rescateVisible = ref(false) // botón de rescate: solo si el auto-avance de la última ronda falla
 const numRonda = ref(0)
 
 const cartaJugRef = ref(null) // wrapper interno (giro rotationY)
@@ -44,6 +45,7 @@ function elegirApuesta(monto) {
 function comenzar() {
   if (!apuesta.value) return
   if (!apostar(apuesta.value)) return
+  registrarEvento('jugo', { juego: 'naipes' })
   partida.value = nuevaPartidaNaipes()
   mano.value = partida.value.manoJugador.map((carta) => ({ carta, jugada: false }))
   enMesa.value = { jugador: null, croupier: null }
@@ -73,22 +75,27 @@ async function jugarCarta(slot) {
   // 1. Tu carta viaja al centro (desde abajo).
   enMesa.value = { jugador: r.jugador, croupier: null }
   await nextTick()
-  await animarViaje(viajeJugRef.value, 90)
+  await conTimeout(animarViaje(viajeJugRef.value, 90))
 
   // 2. El pulpero saca la suya y viaja al centro (desde arriba).
   enMesa.value = { jugador: r.jugador, croupier: r.croupier }
   await nextTick()
-  await animarViaje(viajeCroRef.value, -90)
+  await conTimeout(animarViaje(viajeCroRef.value, -90))
   await esperar(200)
 
   // 3. Las dos se dan vuelta AL MISMO TIEMPO. La cara cambia de reverso a frente
   //    en el punto medio del giro (cuando la carta está de canto, invisible).
-  await animarRevelado(() => { reveladas.value = true })
+  await conTimeout(animarRevelado(() => { reveladas.value = true }))
   ganadorRonda.value = r.resultado
 
-  // Última ronda: no mostrar botón, pasar solo al resultado tras ver las cartas.
+  // Última ronda: tras ver las cartas, avanza SOLO al resultado (sin botón intermedio).
+  // Red de seguridad invisible: si por algo el auto-avance no llega a finalizar() en
+  // ~2.5s, recién ahí aparece un botón "Ver resultado" para destrabar a mano.
   if (partida.value.terminada) {
+    procesando.value = false
+    const rescate = setTimeout(() => { if (!yaFinalizada) rescateVisible.value = true }, 2500)
     await esperar(900)
+    clearTimeout(rescate)
     finalizar()
     return
   }
@@ -168,13 +175,15 @@ function finalizar() {
   if (res === 'gano') {
     const ganancia = Math.round(apuesta.value * config.NAIPES.pago)
     cobrar(ganancia)
+    registrarEvento('gano', { juego: 'naipes', apuesta: apuesta.value, ganancia })
     sfx('plata')
     resultadoFinal.value = { estado: 'gano', ganancia }
   } else if (res === 'empate') {
-    cobrar(apuesta.value) // empate → devuelve la apuesta (ni ganás ni perdés)
+    cobrar(apuesta.value) // empate → devuelve la apuesta (ni ganás ni perdés); no cuenta como gano ni perdio
     resultadoFinal.value = { estado: 'empate', ganancia: 0 }
   } else {
     cobrar(0) // jugada terminada sin ganar → evalúa derrota
+    registrarEvento('perdio', { juego: 'naipes' })
     resultadoFinal.value = { estado: 'perdio', ganancia: 0 }
   }
   fase.value = 'resultado'
@@ -190,6 +199,7 @@ function jugarDeNuevo() {
   ganadorRonda.value = null
   reveladas.value = false
   rondaResuelta.value = false
+  rescateVisible.value = false
   scoreJug.value = 0
   scoreCro.value = 0
   if (apuesta.value > state.plata) apuesta.value = null
@@ -197,6 +207,13 @@ function jugarDeNuevo() {
 
 function esperar(ms) {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+// Resuelve la promesa de animación pase lo que pase: si GSAP no dispara su callback
+// (no cargó, hipo de timeline, desmontaje a mitad), un timeout la destraba. Evita que
+// el flujo de la mano quede colgado en "¡Ganaste la ronda!" sin avanzar al resultado.
+function conTimeout(promesa, ms = 2000) {
+  return Promise.race([promesa, esperar(ms)])
 }
 </script>
 
@@ -331,6 +348,14 @@ function esperar(ms) {
           @click="siguiente"
         >
           Siguiente ronda
+        </button>
+        <!-- Rescate: solo si el auto-avance de la última ronda no llegó (evita trabarse) -->
+        <button
+          v-else-if="rescateVisible"
+          class="bg-gradient-to-b from-farol to-brasa border-2 border-dorado/50 rounded-2xl text-noche font-display text-lg uppercase tracking-wide shadow-farol hover:scale-105 transition-all duration-200 px-9 py-3"
+          @click="finalizar"
+        >
+          Ver resultado
         </button>
       </div>
 
