@@ -445,23 +445,44 @@ posiciones calibradas con el editor visual y textos finales (rotan línea al hab
 mecánica de cada juego). Interacción acercarse → "E Hablar" → `NpcDialog`, el NPC frena al
 jugador. Editor: ⇧N en plaza, elemento 7 en interiores. Ver sección "NPCs" arriba. Nada pendiente.
 
-**MVP listo para subir (08/06/2026).** Editores visuales SACADOS (ver "Dead code"). Solo quedan
-2 pendientes: Leaderboard, Cheaterboard (Audio y Logros ya cerrados).
+**MVP COMPLETO (09/06/2026).** Editores visuales SACADOS (ver "Dead code"). Sin pendientes
+abiertos: los 2 que quedaban (Leaderboard, Cheaterboard) se descartaron por diseño y en su
+lugar se hizo la pantalla de stats finales (ver abajo).
 
-### Pendientes (los únicos 2)
-1. **Leaderboard** — tabla de mejores resultados. Definir métrica (menos manos para saldar, tiempo,
-   plata máxima). Requiere backend (Supabase `supabase-benteveo`, hoy no integrado) o local.
-   Coordinar con Cheaterboard. SIN EMPEZAR.
-2. **Cheaterboard / anti-trampa** — el save se guarda plano en `plaza1810_state_v2` y los logros en
-   `plaza1810_logros_v1`, ambos editables a mano. Definir: validación/firma del save, o mover la
-   verdad al server (Supabase). Relevante si hay leaderboard real. SIN EMPEZAR. (Nota: editar el
-   localStorage a mano NO se refleja en el state reactivo en vivo sin recargar — mini-fricción
-   anti-trampa accidental, pero el save sigue siendo editable + recargable.)
+### Pendientes — CERRADOS por diseño (09/06/2026)
+- **Leaderboard + Cheaterboard: DESCARTADOS.** Un leaderboard global pedía Supabase, identidad
+  de jugador y sync; el Cheaterboard solo tenía sentido para defender ese ranking público. Sin
+  ranking compartido no hay nada que proteger (editar tu propio localStorage solo afecta tu
+  partida local). El juego sigue 100% cliente. En su lugar entró la pantalla de stats finales.
+- Spec + plan: `docs/superpowers/specs/2026-06-09-stats-finales-design.md`,
+  `plans/2026-06-09-stats-finales.md`.
 
-Todo lo demás está CERRADO: estructura, 5 minijuegos, NPCs, audio, logros, cinemáticas
-victoria/derrota, bienvenida, ayuda, avisos, regla de derrota diferida. Decisiones: sprites quedan
+Todo está CERRADO: estructura, 5 minijuegos, NPCs, audio, logros, cinemáticas victoria/derrota,
+bienvenida, ayuda, avisos, regla de derrota diferida, stats finales. Decisiones: sprites quedan
 pixel-art por código (no se cambian); narrativa, easter eggs y pulido visual fino
-descartados/suficientes para el MVP.
+descartados/suficientes para el MVP. Lo que sigue es solo arreglar bugs nuevos.
+
+## Stats finales — CERRADO (09/06/2026)
+
+Al terminar la partida (victoria Y derrota), la `ResultScene` muestra un panel de stats
+personales en 2 bloques: **esta partida** (manos jugadas/ganadas, pico de plata, nivel
+sapo·cubiletes) y **de por vida** (partidas ganadas, manos totales/ganadas, logros X/20).
+100% cliente, sin backend. Reemplaza a Leaderboard/Cheaterboard.
+
+- **`app/composables/useStatsPartida.js`** (NUEVO): singleton reactivo, mismo patrón que
+  `useLogros`. Se suscribe al bus (`onEvento`): `jugo`→`manosJugadas++`, `gano`→`manosGanadas++`.
+  Pico de plata vía watch sobre `state.plata`. `onReiniciarPartida`→reset. NO persiste (es la
+  corrida en curso). Se monta temprano en `GameRoot` (`useStatsPartida()` en el setup) para que
+  cuente desde el arranque. Niveles NO se trackean acá: la `ResultScene` los lee de `state.nivel`.
+- **`logros-reglas.mjs`**: 2 contadores de por vida nuevos en `storeInicial().contadores`:
+  `partidasGanadas` (++ en evento `saldo`) y `partidasJugadas` (++ en `reiniciarPartida`, cuenta
+  la corrida que se cierra). Persisten con el resto de `contadores`.
+- **`useLogros.js`**: expone `contadores: store.contadores` en el return (para la ResultScene).
+- **`ResultScene.vue`**: panel entre el copy narrativo y el botón "Jugar de nuevo"; acento dorado
+  en victoria, rojo en derrota. No rompe la animación GSAP de entrada del `panelRef`.
+- **Reiniciar stats de un dispositivo**: borrar de localStorage `plaza1810_state_v2` (partida) y
+  `plaza1810_logros_v1` (logros + contadores de por vida) + `location.reload()`. `useStatsPartida`
+  no persiste, arranca en 0 solo.
 
 ## Logros tipo Steam — CERRADO (09/06/2026)
 
