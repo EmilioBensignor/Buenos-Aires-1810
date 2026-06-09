@@ -14,7 +14,7 @@ const TOTAL_NPCS = 10
 export function storeInicial() {
   return {
     desbloqueados: {},
-    contadores: { ganadas: 0, perdidas: 0, jugadas: 0, picoPlata: 0 },
+    contadores: { ganadas: 0, perdidas: 0, jugadas: 0, picoPlata: 0, partidasGanadas: 0, partidasJugadas: 0 },
     sets: { jugados: [], ganados: [], npcs: [] },
     // transitorios (no se persisten): se reinician en partida nueva
     rachaActual: 0,
@@ -84,6 +84,7 @@ export function procesarEvento(store, evento) {
       if (evento.nivel >= 3) desbloquear(store, 'segui_bolita', nuevos)
       break
     case 'saldo': {
+      store.contadores.partidasGanadas++
       desbloquear(store, 'libre_deuda', nuevos)
       if (store.tocoFondo) desbloquear(store, 'de_rodillas', nuevos)
       if (evento.nivelSapo >= 5 && evento.nivelCubiletes >= 5) desbloquear(store, 'maestro_garito', nuevos)
@@ -110,7 +111,9 @@ export function procesarState(store, snapshot) {
 }
 
 // Corta la racha y el flag de fondo (partida nueva). Conserva desbloqueados/contadores/sets.
+// Cuenta la partida que se cierra como jugada (la de por vida).
 export function reiniciarPartida(store) {
+  store.contadores.partidasJugadas++
   store.rachaActual = 0
   store.tocoFondo = false
 }
