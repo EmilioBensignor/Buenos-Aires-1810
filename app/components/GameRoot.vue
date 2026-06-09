@@ -2,8 +2,12 @@
 // Orquestador: barra superior global + frame de juego pegado abajo.
 import { computed, ref, watch } from 'vue'
 import { useSceneManager, ESCENAS } from '~/composables/useSceneManager'
+import { useStatsPartida } from '~/composables/useStatsPartida'
 
 const { escenaActual, enTransicion, esInterior } = useSceneManager()
+
+// Inicializa el tracking de stats de la partida desde el arranque (se suscribe al bus).
+useStatsPartida()
 
 // La barra superior se ve en todas las escenas salvo las pantallas completas.
 const mostrarBarra = computed(
