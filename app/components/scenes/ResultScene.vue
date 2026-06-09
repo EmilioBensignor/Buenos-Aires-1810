@@ -3,10 +3,15 @@ import { onMounted, ref, computed } from 'vue'
 import { useGameState } from '~/composables/useGameState'
 import { useSceneManager, ESCENAS } from '~/composables/useSceneManager'
 import { useAudio } from '~/composables/useAudio'
+import { useStatsPartida } from '~/composables/useStatsPartida'
+import { useLogros } from '~/composables/useLogros'
+import { formatMoneda } from '~/composables/useGameConfig'
 
 const { state, reiniciar } = useGameState()
 const { ir, scene } = useSceneManager()
 const { sfx } = useAudio()
+const { statsPartida } = useStatsPartida()
+const { contadores, progreso } = useLogros()
 
 const esVictoria = computed(() => state.resultado === 'victoria')
 const panelRef = ref(null)
@@ -68,6 +73,48 @@ function jugarDeNuevo() {
           en un callejón de la plaza antes del amanecer. Acá se termina tu suerte, criollo.
         </p>
       </template>
+
+      <!-- Panel de stats: esta partida + de por vida (victoria y derrota) -->
+      <div
+        class="w-[440px] flex flex-col gap-5 border-2 rounded-2xl bg-noche/40 px-8 py-6 mt-2"
+        :class="esVictoria ? 'border-dorado/30' : 'border-perdida/30'"
+      >
+        <div class="flex flex-col gap-2">
+          <span
+            class="font-cuerpo text-[13px] tracking-[0.25em] uppercase"
+            :class="esVictoria ? 'text-dorado/60' : 'text-perdida/60'"
+          >Esta partida</span>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Manos jugadas</span><span class="tabular-nums">{{ statsPartida.manosJugadas }}</span>
+          </div>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Manos ganadas</span><span class="tabular-nums">{{ statsPartida.manosGanadas }}</span>
+          </div>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Pico de plata</span><span class="tabular-nums text-dorado">{{ formatMoneda(statsPartida.picoPlata) }}</span>
+          </div>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Nivel sapo · cubiletes</span>
+            <span class="tabular-nums">{{ state.nivel.sapo }} · {{ state.nivel.cubiletes }}</span>
+          </div>
+        </div>
+
+        <div class="border-t border-light/10 flex flex-col gap-2 pt-4">
+          <span class="font-cuerpo text-light/40 text-[13px] tracking-[0.25em] uppercase">De por vida</span>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Partidas ganadas</span><span class="tabular-nums">{{ contadores.partidasGanadas }}</span>
+          </div>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Manos totales</span><span class="tabular-nums">{{ contadores.jugadas }}</span>
+          </div>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Manos ganadas</span><span class="tabular-nums">{{ contadores.ganadas }}</span>
+          </div>
+          <div class="flex justify-between font-cuerpo text-light/85 text-lg">
+            <span>Logros</span><span class="tabular-nums">{{ progreso.hechos }}/{{ progreso.total }}</span>
+          </div>
+        </div>
+      </div>
 
       <button
         data-clic
