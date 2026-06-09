@@ -94,6 +94,7 @@ export const useLogros = () => {
   return {
     catalogo: CATALOGO,
     desbloqueados: store.desbloqueados,
+    contadores: store.contadores,
     progreso,
     toastActual,
     descartarToast
