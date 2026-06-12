@@ -74,7 +74,7 @@ async function tirar() {
   if (res.gano) {
     const ganancia = Math.round(apuesta.value * res.pago)
     cobrar(ganancia)
-    registrarEvento('gano', { juego: 'sapo', apuesta: apuesta.value, ganancia })
+    registrarEvento('gano', { juego: 'sapo', apuesta: apuesta.value, ganancia, x3: res.pago >= pagoMax })
     if (res.pago >= pagoMax) registrarEvento('sapoX3', {}) // embocó la franja del x3
     subirNivel('sapo') // ganaste → más difícil la próxima
     sfx('plata')

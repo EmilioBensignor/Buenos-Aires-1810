@@ -175,7 +175,8 @@ function finalizar() {
   if (res === 'gano') {
     const ganancia = Math.round(apuesta.value * config.NAIPES.pago)
     cobrar(ganancia)
-    registrarEvento('gano', { juego: 'naipes', apuesta: apuesta.value, ganancia })
+    // perfecto = ganó sin que el pulpero se llevara ninguna ronda (3-0).
+    registrarEvento('gano', { juego: 'naipes', apuesta: apuesta.value, ganancia, perfecto: partida.value.rondasCroupier === 0 })
     sfx('plata')
     resultadoFinal.value = { estado: 'gano', ganancia }
   } else if (res === 'empate') {

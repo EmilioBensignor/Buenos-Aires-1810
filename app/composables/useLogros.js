@@ -2,7 +2,7 @@
 // y observa el state para desbloquear logros, persiste en localStorage, encola toasts.
 import { reactive, computed, watch } from 'vue'
 import { CATALOGO } from './logros-catalogo.mjs'
-import { storeInicial, procesarEvento, procesarState, reiniciarPartida } from './logros-reglas.mjs'
+import { storeInicial, procesarEvento, procesarState, reiniciarPartida, sincronizarCompletista } from './logros-reglas.mjs'
 import { useGameState } from './useGameState'
 
 const LS_KEY = 'plaza1810_logros_v1'
@@ -53,6 +53,9 @@ function iniciar() {
   if (iniciado || typeof window === 'undefined') return
   iniciado = true
   const { onEvento, onReiniciarPartida, state } = useGameState()
+
+  // Re-bloquear el completista si el catálogo creció (save viejo lo tenía pero faltan logros nuevos).
+  if (sincronizarCompletista(store)) persistir()
 
   // Eventos del juego.
   onEvento((evento) => {

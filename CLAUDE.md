@@ -466,7 +466,7 @@ descartados/suficientes para el MVP. Lo que sigue es solo arreglar bugs nuevos.
 
 Al terminar la partida (victoria Y derrota), la `ResultScene` muestra un panel de stats
 personales en 2 bloques: **esta partida** (manos jugadas/ganadas, pico de plata, nivel
-sapo·cubiletes) y **de por vida** (partidas ganadas, manos totales/ganadas, logros X/20).
+sapo·cubiletes) y **de por vida** (partidas ganadas, manos totales/ganadas, logros X/total).
 100% cliente, sin backend. Reemplaza a Leaderboard/Cheaterboard.
 
 - **`app/composables/useStatsPartida.js`** (NUEVO): singleton reactivo, mismo patrón que
@@ -484,47 +484,70 @@ sapo·cubiletes) y **de por vida** (partidas ganadas, manos totales/ganadas, log
   `plaza1810_logros_v1` (logros + contadores de por vida) + `location.reload()`. `useStatsPartida`
   no persiste, arranca en 0 solo.
 
-## Logros tipo Steam — CERRADO (09/06/2026)
+## Logros tipo Steam — CERRADO (09/06/2026, ampliado 12/06/2026)
 
-20 logros desbloqueables, completables al 100%, validados uno por uno por el usuario. Personales por
-dispositivo (localStorage), sin backend. Spec + plan en `docs/superpowers/`
+31 logros desbloqueables (20 originales + 11 de la tanda 2), completables al 100%, validados por el
+usuario. Personales por dispositivo (localStorage), sin backend. Spec + plan en `docs/superpowers/`
 (`specs/2026-06-09-logros-design.md`, `plans/2026-06-09-logros.md`).
+La UI y el completista cuentan dinámicamente sobre `CATALOGO.length`: agregar logros no pide tocar
+componentes (`ResultScene`/`GaleriaLogros` ya muestran X/total).
 
 ### Arquitectura (bus de eventos + composable + UI)
 - **Bus de eventos** en `useGameState`: `registrarEvento(tipo, datos)` (solo emite) + `onEvento(fn)`
   (suscribe, devuelve unsub) + `onReiniciarPartida(fn)` (corta la racha en partida nueva, lo llama
   `reiniciar()`). `useGameState` NO conoce a sus consumidores (desacoplado).
-- **`app/composables/logros-catalogo.mjs`**: los 20 logros como data pura (`.mjs` para testear desde
+- **`app/composables/logros-catalogo.mjs`**: los 31 logros como data pura (`.mjs` para testear desde
   node). Cada uno `{ id, nombre, desc, icono }`. Campo `secreto` reservado (no usado).
 - **`app/composables/logros-reglas.mjs`**: lógica PURA (sin Vue/localStorage/tiempo). `storeInicial()`,
   `procesarEvento(store, evento)` y `procesarState(store, snapshot)` → `{ store, nuevos: [ids] }`;
-  `reiniciarPartida(store)` corta racha+tocoFondo. `desbloquear` idempotente. Constantes: `TOTAL_NPCS=10`,
-  `APUESTA_MAX=500`, `PLATA_BOLSA_GORDA=5000`, `PLATA_FONDO=100` (centavos). Testeada por node.
+  `reiniciarPartida(store)` corta racha+tocoFondo+picoPlataPartida+ultimoAllIn. `sincronizarCompletista(store)`
+  re-evalúa el completista al cargar (lo des-marca si el catálogo creció y faltan logros — ÚNICA cosa que
+  borra: `delete desbloqueados.completista`, nunca toca el resto). `desbloquear` idempotente. Constantes:
+  `TOTAL_NPCS=10`, `APUESTA_MAX=500`, `PLATA_BOLSA_GORDA=5000`, `PLATA_FONDO=100`, `PLATA_FORRADO=50000`
+  ($500), `PLATA_PICO_FUNDIDO=5000` ($50), `ALL_IN_TECHO=300` ($3) (centavos). Testeada por node.
 - **`app/composables/useLogros.js`**: singleton reactivo. Envuelve las reglas con reactividad +
   persistencia (`plaza1810_logros_v1`: solo `desbloqueados`/`contadores`/`sets`; racha+tocoFondo NO
   se persisten) + suscripción al bus + watcher de `state.plata/resultado` + cola de toasts. Expone
   `catalogo`, `desbloqueados`, `progreso {hechos,total}`, `toastActual`, `descartarToast`.
 - **UI**: `ToastLogro.vue` (toast estilo `AvisoSaldar`, acento dorado, con COLA — `mostrar()` dispara
-  `sfx('logro')`) + `GaleriaLogros.vue` (modal estilo `ControlesAyuda`, grid 2-col, contador X/20,
-  bloqueados en gris). Botón 🏆 en `TopBar` (emite `logros`) → `GameRoot` togglea la galería (igual
-  que ayuda/`ControlesAyuda`). Ambos montados en `GameRoot`.
+  `sfx('logro')`) + `GaleriaLogros.vue` (modal estilo `ControlesAyuda`, grid 2-col, contador X/total
+  dinámico, bloqueados en gris). Botón 🏆 en `TopBar` (emite `logros`) → `GameRoot` togglea la galería
+  (igual que ayuda/`ControlesAyuda`). Ambos montados en `GameRoot`.
 
 ### Eventos emitidos (cableado quirúrgico, 1-3 líneas por archivo)
 - **5 minijuegos**: `jugo {juego}` al apostar; `gano {juego,apuesta,ganancia}` / `perdio {juego}` al
   resolver; + específicos: `dadosExacto7` (DiceGame, `prediccion==='exacto'`), `sapoX3` (SapoGame,
   `res.pago>=pagoMax`), `bingoDoble` (BingoGame, `ganasteLinea&&ganasteBingo`), `cubiletesNivel {nivel}`
   (CupsGame, nivel ANTES de subir). Naipes empate NO emite gano/perdio.
+  - **Campos extra del `gano` (tanda 2)**: `x3` (sapo, true si embocó la boca) y `perfecto` (naipes,
+    true si ganó 3-0 sin perder ronda). La regla los lee para `sapo_serial`/`naipes_perfecto`.
+- **All-in heroico**: `apostoAllIn` emitido desde `apostar()` en useGameState cuando apostás TODA tu
+  plata teniendo ≤$3. Marca un flag transitorio (`ultimoAllIn`); el próximo `gano` lo consume →
+  `all_in_heroico`. Un `perdio` o partida nueva limpian el flag.
 - **NPCs**: `hablo {npcId}` desde un helper `abrirDialogo(d)` único en `PlazaScene.vue` e
   `InteriorScene.vue` (los renderers `hablar()` ahora devuelven `id`).
 - **Garito**: `saldo {nivelSapo,nivelCubiletes}` SOLO en el saldado real (no en DEV GANAR/PERDER).
 
-### Catálogo de los 20 (agrupados por tipo en la galería, fácil→difícil)
-Progresión (1-5): primera_mano · primer_tropiezo · timbero (5 juegos) · conocido (10 NPCs) ·
-libre_deuda. Grind (6-10): manos_calientes (25 gana) · curtido (25 pierde) · bolsa_gorda ($50) ·
-patron (100 jugadas) · sin_mango (game over). Skill (11-15): boca_sapo · linea_bingo · siete_clavado ·
-segui_bolita (cubiletes nivel≥3) · las_sabe_todas (ganar en los 5). Meta (16-20): en_racha (5
-seguidas) · de_rodillas (tocar $1 + saldar) · audaz (ganar apostando $5) · maestro_garito (saldar con
-sapo+cubiletes nivel≥5) · completista (los otros 19, automático).
+### Catálogo (31, agrupados por tipo en la galería, fácil→difícil)
+**Originales (20):** Progresión: primera_mano · primer_tropiezo · timbero (5 juegos) · conocido (10 NPCs)
+· libre_deuda. Grind: manos_calientes (25 gana) · curtido (25 pierde) · bolsa_gorda ($50) · patron (100
+jugadas) · sin_mango (game over). Skill: boca_sapo · linea_bingo · siete_clavado · segui_bolita (cubiletes
+nivel≥3) · las_sabe_todas (ganar en los 5). Meta: en_racha (5 seguidas) · de_rodillas (tocar $1 + saldar) ·
+audaz (ganar apostando $5) · maestro_garito (saldar con sapo+cubiletes nivel≥5) · completista (los otros,
+automático).
+**Tanda 2 (11, ampliación 12/06/2026):** sapo_serial (x3 sapo 5 SEGUIDAS — racha, corta al perder o ganar
+sin x3) · dados_serial (Exacto 7 ×10 acumulado) · tahur_bronce/plata/oro (150/300/500 jugadas) · racha_larga
+(10 ganadas seguidas) · forrado ($500 en bolsa) · gran_maestro (saldar con sapo+cubiletes nivel≥8) ·
+naipes_perfecto (naipes 3-0) · all_in_heroico (ganar all-in con ≤$3) · fundido_grande (game over con pico
+≥$50 esa partida). Contadores nuevos en el store: `dadosExacto7`, `sapoX3Racha` (por vida) + transitorios
+`picoPlataPartida`, `ultimoAllIn`.
+
+### Completista re-bloqueable (12/06/2026)
+El completista cuenta sobre `CATALOGO.length - 1` (todos los otros) y es **re-bloqueable**: si el catálogo
+crece y un save viejo lo tenía pero le faltan los nuevos, `sincronizarCompletista` (corre al cargar, en
+`useLogros.iniciar`) hace `delete desbloqueados.completista`. **Solo toca esa clave** — el resto de
+desbloqueados/contadores/sets queda intacto (verificado por node con el caso real: 20→19 logros, contadores
+y sets sin cambios). El re-bloqueo se ve recién al recargar (el store reactivo se carga una vez al arrancar).
 
 ### Notas
 - **Persisten entre partidas** (reiniciar() NO los borra). Contadores acumulados de por-vida; racha

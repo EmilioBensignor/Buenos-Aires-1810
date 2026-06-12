@@ -91,6 +91,9 @@ const sinPlata = computed(() => state.plata <= 0)
 // si ganaste o perdiste.
 function apostar(monto) {
   if (monto > state.plata) return false
+  // All-in heroico: apostaste TODO lo que tenías, teniendo $3 o menos. El logro lo
+  // resuelve el próximo gano (el bus marca un flag transitorio en useLogros).
+  if (monto === state.plata && state.plata <= 300) registrarEvento('apostoAllIn', {})
   state.plata -= monto
   state.ultimoDelta = -monto
   return true
